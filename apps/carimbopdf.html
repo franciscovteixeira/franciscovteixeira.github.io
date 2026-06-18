@@ -1,1 +1,1362 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Carimbador de PDF</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf-lib/1.17.1/pdf-lib.min.js"></script>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
 
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg:       #0f1117;
+    --surface:  #1a1d27;
+    --card:     #22263a;
+    --border:   #2e3350;
+    --accent:   #4f7cff;
+    --accent2:  #a78bfa;
+    --success:  #34d399;
+    --warn:     #fbbf24;
+    --danger:   #f87171;
+    --text:     #e2e8f0;
+    --muted:    #64748b;
+    --stamp-bg: rgba(255,255,255,0.92);
+    --stamp-border: #1e3a5f;
+    --stamp-text: #0f2040;
+  }
+
+  body {
+    font-family: 'Inter', sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+  }
+
+  header {
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    padding: 14px 28px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+  header .logo {
+    width: 32px; height: 32px;
+    background: linear-gradient(135deg, var(--accent), var(--accent2));
+    border-radius: 8px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 16px;
+  }
+  header h1 { font-size: 16px; font-weight: 600; letter-spacing: -0.3px; }
+  header span { font-size: 12px; color: var(--muted); margin-left: 4px; }
+
+  .main {
+    display: flex;
+    flex: 1;
+    overflow: hidden;
+    height: calc(100vh - 57px);
+  }
+
+  /* ── PAINEL ESQUERDO ── */
+  .panel {
+    width: 320px;
+    min-width: 280px;
+    background: var(--surface);
+    border-right: 1px solid var(--border);
+    display: flex;
+    flex-direction: column;
+    overflow-y: auto;
+    overflow-x: hidden;
+  }
+
+  .section {
+    padding: 18px 20px;
+    border-bottom: 1px solid var(--border);
+  }
+  .section-title {
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 1.2px;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin-bottom: 12px;
+  }
+
+  /* Upload zone */
+  .upload-zone {
+    border: 2px dashed var(--border);
+    border-radius: 10px;
+    padding: 22px 16px;
+    text-align: center;
+    cursor: pointer;
+    transition: all .2s;
+    background: var(--card);
+  }
+  .upload-zone:hover, .upload-zone.drag { border-color: var(--accent); background: rgba(79,124,255,.07); }
+  .upload-zone .icon { font-size: 28px; margin-bottom: 8px; }
+  .upload-zone p { font-size: 13px; color: var(--muted); }
+  .upload-zone p b { color: var(--accent); }
+  .file-name {
+    margin-top: 10px;
+    font-size: 12px;
+    font-family: 'JetBrains Mono', monospace;
+    color: var(--success);
+    background: rgba(52,211,153,.1);
+    padding: 5px 10px;
+    border-radius: 6px;
+    display: none;
+    word-break: break-all;
+  }
+
+  /* Campos de formulário */
+  label { display: block; font-size: 12px; color: var(--muted); margin-bottom: 5px; margin-top: 12px; }
+  label:first-of-type { margin-top: 0; }
+
+  input[type=text], input[type=number], textarea, select {
+    width: 100%;
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 7px;
+    padding: 8px 11px;
+    font-size: 13px;
+    color: var(--text);
+    font-family: 'Inter', sans-serif;
+    outline: none;
+    transition: border-color .2s;
+    resize: vertical;
+  }
+  input:focus, textarea:focus, select:focus { border-color: var(--accent); }
+  textarea { min-height: 90px; }
+
+  /* Controles de estilo */
+  .style-row { display: flex; gap: 8px; align-items: center; }
+  .style-row label { margin: 0; white-space: nowrap; }
+
+  .color-btn {
+    width: 28px; height: 28px; border-radius: 6px;
+    border: 2px solid var(--border);
+    cursor: pointer;
+    padding: 0;
+    transition: border-color .2s;
+  }
+  .color-btn:hover { border-color: var(--accent); }
+
+  .btn-row { display: flex; gap: 8px; margin-top: 6px; }
+  .style-toggle {
+    flex: 1;
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 5px 0;
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--muted);
+    cursor: pointer;
+    transition: all .15s;
+  }
+  .style-toggle.active { background: var(--accent); border-color: var(--accent); color: #fff; }
+
+  /* Botão principal */
+  .btn-primary {
+    width: 100%;
+    background: linear-gradient(135deg, var(--accent), var(--accent2));
+    border: none;
+    border-radius: 9px;
+    padding: 12px;
+    font-size: 14px;
+    font-weight: 600;
+    color: #fff;
+    cursor: pointer;
+    transition: opacity .2s, transform .1s;
+    letter-spacing: 0.2px;
+  }
+  .btn-primary:hover { opacity: .9; }
+  .btn-primary:active { transform: scale(.98); }
+  .btn-primary:disabled { opacity: .4; cursor: not-allowed; }
+
+  .btn-secondary {
+    width: 100%;
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 9px;
+    padding: 10px;
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--text);
+    cursor: pointer;
+    transition: all .2s;
+    margin-top: 8px;
+  }
+  .btn-secondary:hover { border-color: var(--accent); color: var(--accent); }
+
+  /* Indicador de posição */
+  .pos-display {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 7px;
+    padding: 8px 12px;
+    font-size: 12px;
+    font-family: 'JetBrains Mono', monospace;
+    color: var(--accent);
+    text-align: center;
+    margin-top: 8px;
+  }
+
+  /* Lista de carimbos */
+  .stamp-list { display: flex; flex-direction: column; gap: 6px; }
+  .stamp-item {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 9px 12px;
+    font-size: 12px;
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 8px;
+    transition: border-color .2s;
+  }
+  .stamp-item:hover { border-color: var(--accent); }
+  .stamp-item.selected { border-color: var(--accent); background: rgba(79,124,255,.08); }
+  .stamp-item-text { flex: 1; word-break: break-word; color: var(--text); }
+  .stamp-item-page { font-size: 10px; color: var(--muted); margin-top: 3px; }
+  .stamp-actions { display: flex; gap: 4px; flex-shrink: 0; }
+  .icon-btn {
+    background: none;
+    border: none;
+    cursor: pointer;
+    font-size: 14px;
+    padding: 2px 5px;
+    border-radius: 5px;
+    transition: background .15s;
+    color: var(--muted);
+  }
+  .icon-btn:hover { background: var(--border); color: var(--text); }
+  .icon-btn.del:hover { color: var(--danger); }
+
+  .empty-list {
+    text-align: center;
+    padding: 20px;
+    color: var(--muted);
+    font-size: 12px;
+  }
+
+  /* ── ÁREA DO PDF ── */
+  .viewer-area {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    background: var(--bg);
+  }
+
+  .viewer-toolbar {
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    padding: 8px 16px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex-shrink: 0;
+  }
+  .page-nav { display: flex; align-items: center; gap: 8px; }
+  .page-nav button {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    width: 30px; height: 30px;
+    font-size: 14px;
+    color: var(--text);
+    cursor: pointer;
+    transition: all .15s;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .page-nav button:hover:not(:disabled) { border-color: var(--accent); color: var(--accent); }
+  .page-nav button:disabled { opacity: .3; cursor: default; }
+  .page-info { font-size: 13px; font-family: 'JetBrains Mono', monospace; color: var(--muted); }
+
+  .zoom-controls { display: flex; align-items: center; gap: 6px; margin-left: auto; }
+  .zoom-controls button {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    width: 28px; height: 28px;
+    font-size: 14px;
+    color: var(--text);
+    cursor: pointer;
+    transition: all .15s;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .zoom-controls button:hover { border-color: var(--accent); color: var(--accent); }
+  .zoom-value { font-size: 12px; font-family: 'JetBrains Mono', monospace; color: var(--muted); min-width: 40px; text-align: center; }
+
+  .tip {
+    background: rgba(79,124,255,.1);
+    border: 1px solid rgba(79,124,255,.25);
+    border-radius: 6px;
+    padding: 5px 10px;
+    font-size: 11px;
+    color: var(--accent);
+    margin-left: 8px;
+  }
+
+  .pdf-scroll {
+    flex: 1;
+    overflow: auto;
+    display: flex;
+    justify-content: center;
+    padding: 24px;
+  }
+
+  .pdf-wrapper {
+    position: relative;
+    display: inline-block;
+    cursor: crosshair;
+    box-shadow: 0 8px 40px rgba(0,0,0,.5);
+  }
+
+  #pdf-canvas {
+    display: block;
+    border-radius: 4px;
+  }
+
+  /* Carimbos sobre o canvas */
+  .stamp-overlay {
+    position: absolute;
+    top: 0; left: 0;
+    width: 100%; height: 100%;
+    pointer-events: none;
+  }
+
+  .stamp-el {
+    position: absolute;
+    pointer-events: all;
+    cursor: move;
+    user-select: none;
+  }
+
+  .stamp-box {
+    background: var(--stamp-bg);
+    border: 2px solid var(--stamp-border);
+    border-radius: 4px;
+    padding: 8px 12px;
+    font-family: 'Inter', sans-serif;
+    font-size: 13px;
+    color: var(--stamp-text);
+    white-space: pre-wrap;
+    max-width: 280px;
+    min-width: 100px;
+    box-shadow: 2px 2px 8px rgba(0,0,0,.25);
+    line-height: 1.5;
+    position: relative;
+  }
+
+  .stamp-box.selected-stamp {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 2px rgba(79,124,255,.4), 2px 2px 8px rgba(0,0,0,.25);
+  }
+
+  .stamp-handle {
+    position: absolute;
+    top: -8px; right: -8px;
+    width: 16px; height: 16px;
+    background: var(--danger);
+    border-radius: 50%;
+    border: 2px solid #fff;
+    cursor: pointer;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    font-size: 9px;
+    color: #fff;
+    font-weight: 700;
+    z-index: 10;
+  }
+  .stamp-el:hover .stamp-handle,
+  .stamp-box.selected-stamp + .stamp-handle,
+  .stamp-el.selected-stamp-el .stamp-handle { display: flex; }
+
+  /* Toast */
+  #toast {
+    position: fixed;
+    bottom: 24px; right: 24px;
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 12px 18px;
+    font-size: 13px;
+    color: var(--text);
+    display: none;
+    z-index: 9999;
+    box-shadow: 0 4px 20px rgba(0,0,0,.4);
+    animation: slideUp .3s ease;
+  }
+  #toast.success { border-color: var(--success); color: var(--success); }
+  #toast.error   { border-color: var(--danger);  color: var(--danger); }
+  @keyframes slideUp { from { opacity:0; transform:translateY(10px); } to { opacity:1; transform:translateY(0); } }
+
+  /* Placeholder */
+  .viewer-placeholder {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    color: var(--muted);
+    gap: 12px;
+  }
+  .viewer-placeholder .big-icon { font-size: 64px; opacity: .3; }
+  .viewer-placeholder p { font-size: 14px; }
+
+  input[type=range] {
+    accent-color: var(--accent);
+    width: 100%;
+    margin-top: 4px;
+  }
+
+  .badge {
+    display: inline-block;
+    background: rgba(79,124,255,.15);
+    color: var(--accent);
+    font-size: 10px;
+    font-weight: 600;
+    border-radius: 4px;
+    padding: 2px 6px;
+    margin-left: 6px;
+    letter-spacing: .5px;
+  }
+
+  /* Rodapé */
+  .app-footer {
+    background: var(--surface);
+    border-top: 1px solid var(--border);
+    padding: 8px 16px;
+    font-size: 11px;
+    color: var(--muted);
+
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 16px;
+
+    flex-wrap: wrap;
+}
+
+.app-footer a {
+    color: var(--accent);
+    text-decoration: none;
+}
+
+.app-footer a:hover {
+    text-decoration: underline;
+}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo">📄</div>
+  <h1>Carimbador de PDF</h1>
+  <span>— clique no PDF para adicionar observações</span>
+</header>
+
+<div class="main">
+  <!-- ── PAINEL ── -->
+  <div class="panel">
+
+    <!-- Upload -->
+    <div class="section">
+      <div class="section-title">Arquivo PDF</div>
+      <div class="upload-zone" id="uploadZone">
+        <div class="icon">📂</div>
+        <p><b>Clique</b> para selecionar ou arraste aqui</p>
+      </div>
+      <div class="file-name" id="fileName"></div>
+      <input type="file" id="fileInput" accept=".pdf" style="display:none">
+    </div>
+
+    <!-- Modo do carimbo -->
+    <div class="section">
+      <div class="section-title">Tipo de Carimbo</div>
+      <div class="btn-row" style="margin-top:0">
+        <button class="style-toggle active" id="modeObs" onclick="setMode('obs')">📝 Observação</button>
+        <button class="style-toggle" id="modeFin" onclick="setMode('fin')">💰 Financeiro</button>
+      </div>
+    </div>
+
+    <!-- Observação -->
+    <div class="section" id="obsSection">
+      <div class="section-title">Texto do Carimbo</div>
+      <label>Observação</label>
+      <textarea id="stampText" placeholder="Ex: PAGO em 16/06/2025&#10;Ref: NF 0042&#10;Responsável: João"></textarea>
+    </div>
+
+    <!-- Financeiro -->
+    <div class="section" id="finSection" style="display:none">
+      <div class="section-title">Forma de Pagamento</div>
+      <div class="btn-row" style="margin-top:0">
+        <button class="style-toggle active" id="finPix" onclick="setFinType('pix')">PIX</button>
+        <button class="style-toggle" id="finTransf" onclick="setFinType('transf')">Transferência</button>
+        <button class="style-toggle" id="finBoleto" onclick="setFinType('boleto')">Boleto</button>
+      </div>
+
+      <!-- PIX -->
+      <div id="finFieldsPix">
+        <label>Chave PIX</label>
+        <input type="text" id="pixChave" placeholder="CPF, e-mail, telefone ou chave aleatória">
+        <label>Nome do Recebedor</label>
+        <input type="text" id="pixNome" placeholder="Nome completo">
+        <label>Data de Vencimento</label>
+        <input type="text" id="pixVenc" placeholder="Ex: 31/12/2025">
+      </div>
+
+      <!-- Transferência -->
+      <div id="finFieldsTransf" style="display:none">
+        <label>Banco</label>
+        <input type="text" id="transfBanco" placeholder="Ex: Banco do Brasil">
+        <label>Agência</label>
+        <input type="text" id="transfAgencia" placeholder="Ex: 1234-5">
+        <label>Conta</label>
+        <input type="text" id="transfConta" placeholder="Ex: 12345-6">
+        <label>Nome do Recebedor</label>
+        <input type="text" id="transfNome" placeholder="Nome completo">
+        <label>Data de Vencimento</label>
+        <input type="text" id="transfVenc" placeholder="Ex: 31/12/2025">
+      </div>
+
+      <!-- Boleto -->
+      <div id="finFieldsBoleto" style="display:none">
+        <label>Nome do Recebedor</label>
+        <input type="text" id="boletoNome" placeholder="Nome completo">
+        <label>Data de Vencimento</label>
+        <input type="text" id="boletoVenc" placeholder="Ex: 31/12/2025">
+      </div>
+    </div>
+
+    <!-- Estilo (comum aos dois modos) -->
+    <div class="section">
+      <div class="section-title">Estilo do Carimbo</div>
+      <label style="margin-top:0">Estilo do texto</label>
+      <div class="style-row">
+        <select id="stampFont" style="flex:1">
+          <option value="Inter, sans-serif">Inter (padrão)</option>
+          <option value="'Courier New', monospace">Courier (máquina)</option>
+          <option value="Georgia, serif">Georgia (clássico)</option>
+          <option value="Arial, sans-serif">Arial</option>
+        </select>
+        <input type="color" class="color-btn" id="stampColor" value="#0f2040" title="Cor do texto">
+        <input type="color" class="color-btn" id="stampBg" value="#ffffff" title="Cor do fundo">
+      </div>
+
+      <label>Tamanho da fonte: <span id="fontSizeVal">13</span>px</label>
+      <input type="range" id="fontSize" min="8" max="36" value="13">
+
+      <label>Borda</label>
+      <div class="btn-row">
+        <button class="style-toggle active" id="borderSolid" onclick="setBorder('solid')">Sólida</button>
+        <button class="style-toggle" id="borderDashed" onclick="setBorder('dashed')">Tracejada</button>
+        <button class="style-toggle" id="borderNone" onclick="setBorder('none')">Sem borda</button>
+      </div>
+
+      <label style="margin-top:12px">Cor da borda</label>
+      <input type="color" id="borderColor" value="#1e3a5f" style="width:100%;height:32px;border-radius:7px;border:1px solid var(--border);background:var(--card);padding:2px;cursor:pointer">
+
+      <label style="margin-top:10px">Opacidade do fundo: <span id="opacityVal">92</span>%</label>
+      <input type="range" id="bgOpacity" min="0" max="100" value="92">
+    </div>
+
+    <!-- Instruções de posicionamento -->
+    <div class="section">
+      <div class="section-title">Posicionamento</div>
+      <p style="font-size:12px;color:var(--muted);line-height:1.6">
+        Após preencher o texto acima, <b style="color:var(--text)">clique em qualquer ponto do PDF</b> para inserir o carimbo nessa posição.
+        <br><br>
+        Você pode <b style="color:var(--text)">arrastar</b> os carimbos para reposicioná-los e clicar no <b style="color:var(--danger)">✕</b> para remover.
+      </p>
+      <div class="pos-display" id="posDisplay">Posição: — </div>
+    </div>
+
+    <!-- Lista de carimbos -->
+    <div class="section" style="flex:1">
+      <div class="section-title">Carimbos adicionados <span class="badge" id="stampCount">0</span></div>
+      <div class="stamp-list" id="stampList">
+        <div class="empty-list">Nenhum carimbo ainda.<br>Clique no PDF para adicionar.</div>
+      </div>
+      <button class="btn-secondary" onclick="clearAll()" style="margin-top:12px">🗑 Limpar todos</button>
+    </div>
+
+    <!-- Compressão / Tamanho -->
+    <div class="section">
+      <div class="section-title">Tamanho do Arquivo</div>
+      <div class="pos-display" id="sizeDisplay" style="color:var(--text)">Carregue um PDF para ver o tamanho</div>
+
+      <label style="margin-top:12px">Compressão</label>
+      <div class="btn-row" style="margin-top:0">
+        <button class="style-toggle active" id="compNone" onclick="setCompression('none')">Original</button>
+        <button class="style-toggle" id="compMed" onclick="setCompression('medium')">Média</button>
+        <button class="style-toggle" id="compHigh" onclick="setCompression('high')">Alta</button>
+      </div>
+      <p style="font-size:11px;color:var(--muted);margin-top:8px;line-height:1.5">
+        "Média"/"Alta" recomprimem as imagens já existentes no PDF (fotos, scans). PDFs só com texto digital não mudam de tamanho, pois não têm imagens para comprimir.
+      </p>
+
+      <label style="margin-top:10px">
+        <input type="checkbox" id="forceRaster" style="width:auto;margin-right:6px;vertical-align:middle">
+        PDF é um scan/foto? Forçar compressão extra
+      </label>
+      <p style="font-size:11px;color:var(--muted);margin-top:4px;line-height:1.5">
+        Converte cada página em imagem comprimida. Reduz bastante o tamanho, mas o texto deixa de ser selecionável/pesquisável. Use só se o PDF original já é uma digitalização.
+      </p>
+
+      <button class="btn-secondary" id="estimateBtn" onclick="estimateCompressedSize()" style="margin-top:10px">📏 Calcular tamanho estimado</button>
+      <div class="pos-display" id="estimateDisplay" style="display:none;margin-top:8px"></div>
+    </div>
+
+    <!-- Exportar -->
+    <div class="section">
+      <div class="section-title">Exportar</div>
+      <label>Nome do arquivo (sem .pdf)</label>
+      <input type="text" id="outputName" placeholder="documento_carimbado">
+      <button class="btn-primary" id="exportBtn" onclick="exportPDF()" disabled style="margin-top:12px">
+        ⬇ Baixar PDF com Carimbos
+      </button>
+      <div class="pos-display" id="finalSizeDisplay" style="display:none;margin-top:8px"></div>
+    </div>
+
+  </div>
+
+  <!-- ── VISUALIZADOR ── -->
+  <div class="viewer-area">
+    <div class="viewer-toolbar" id="viewerToolbar" style="display:none">
+      <div class="page-nav">
+        <button id="prevBtn" onclick="changePage(-1)" disabled>‹</button>
+        <span class="page-info">Página <span id="curPage">1</span> / <span id="totalPages">1</span></span>
+        <button id="nextBtn" onclick="changePage(1)" disabled>›</button>
+      </div>
+      <div class="tip">💡 Clique no PDF para inserir carimbo</div>
+      <div class="zoom-controls">
+        <button onclick="changeZoom(-0.15)">−</button>
+        <span class="zoom-value" id="zoomVal">100%</span>
+        <button onclick="changeZoom(0.15)">+</button>
+        <button onclick="fitPage()" title="Ajustar à tela" style="font-size:11px;width:auto;padding:0 8px">Ajustar</button>
+      </div>
+    </div>
+
+    <div class="pdf-scroll" id="pdfScroll">
+      <div class="viewer-placeholder" id="placeholder">
+        <div class="big-icon">📋</div>
+        <p>Selecione um PDF para começar</p>
+      </div>
+      <div class="pdf-wrapper" id="pdfWrapper" style="display:none">
+        <canvas id="pdf-canvas"></canvas>
+        <div class="stamp-overlay" id="stampOverlay"></div>
+      </div>
+    </div>
+    
+    <footer class="app-footer">
+      <span>Desenvolvido por <a href="https://github.com/franciscovteixeira" target="_blank">Francisco Teixeira</a></span>
+      <span>© 2026 Carimbo PDF. Todos os direitos reservados.</span>
+    </footer>
+
+  </div>
+</div>
+
+<div id="toast"></div>
+
+<script>
+// ── PDF.js setup ──
+pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+
+let pdfDoc = null, pdfBytes = null;
+let currentPage = 1, totalPages = 0;
+let scale = 1.0;
+let stamps = []; // {id, page, text, x, y, xPct, yPct, font, color, bg, fontSize, borderStyle, borderColor, bgOpacity}
+let stampIdCounter = 0;
+let borderStyle = 'solid';
+let dragging = null, dragOffX = 0, dragOffY = 0;
+let selectedStampId = null;
+let currentMode = 'obs';      // 'obs' | 'fin'
+let currentFinType = 'pix';   // 'pix' | 'transf' | 'boleto'
+let compressionLevel = 'none'; // 'none' | 'medium' | 'high'
+let footerDateMode = 'auto';   // 'auto' | 'manual'
+
+// ── Upload ──
+const uploadZone = document.getElementById('uploadZone');
+const fileInput  = document.getElementById('fileInput');
+
+uploadZone.addEventListener('click', () => fileInput.click());
+uploadZone.addEventListener('dragover', e => { e.preventDefault(); uploadZone.classList.add('drag'); });
+uploadZone.addEventListener('dragleave', () => uploadZone.classList.remove('drag'));
+uploadZone.addEventListener('drop', e => {
+  e.preventDefault(); uploadZone.classList.remove('drag');
+  if (e.dataTransfer.files[0]) loadFile(e.dataTransfer.files[0]);
+});
+fileInput.addEventListener('change', e => { if (e.target.files[0]) loadFile(e.target.files[0]); });
+
+async function loadFile(file) {
+  if (!file.name.endsWith('.pdf')) { showToast('Apenas arquivos PDF são aceitos.', 'error'); return; }
+  const buf = await file.arrayBuffer();
+  pdfBytes = buf.slice(0); // cópia independente, guardada só para o PDF-Lib usar na exportação
+  const arr = new Uint8Array(buf.slice(0)); // outra cópia independente, só para o PDF.js renderizar
+  pdfDoc = await pdfjsLib.getDocument({ data: arr }).promise;
+  totalPages = pdfDoc.numPages;
+  currentPage = 1;
+  stamps = [];
+  document.getElementById('fileName').textContent = '✓ ' + file.name;
+  document.getElementById('fileName').style.display = 'block';
+  document.getElementById('outputName').value = file.name.replace('.pdf','') + '_carimbado';
+  document.getElementById('totalPages').textContent = totalPages;
+  document.getElementById('viewerToolbar').style.display = 'flex';
+  document.getElementById('placeholder').style.display = 'none';
+  document.getElementById('pdfWrapper').style.display = 'inline-block';
+  document.getElementById('exportBtn').disabled = false;
+  document.getElementById('sizeDisplay').textContent = `Tamanho original: ${formatBytes(buf.byteLength)}`;
+  document.getElementById('finalSizeDisplay').style.display = 'none';
+  await renderPage();
+  updateStampList();
+  fitPage();
+}
+
+function formatBytes(bytes) {
+  if (bytes < 1024) return bytes + ' B';
+  if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+  return (bytes / (1024 * 1024)).toFixed(2) + ' MB';
+}
+
+// ── Render ──
+async function renderPage() {
+  const page = await pdfDoc.getPage(currentPage);
+  const viewport = page.getViewport({ scale });
+  const canvas = document.getElementById('pdf-canvas');
+  canvas.width = viewport.width;
+  canvas.height = viewport.height;
+  await page.render({ canvasContext: canvas.getContext('2d'), viewport }).promise;
+  document.getElementById('curPage').textContent = currentPage;
+  document.getElementById('prevBtn').disabled = currentPage <= 1;
+  document.getElementById('nextBtn').disabled = currentPage >= totalPages;
+  renderStamps();
+}
+
+function changePage(delta) {
+  const np = currentPage + delta;
+  if (np < 1 || np > totalPages) return;
+  currentPage = np;
+  renderPage();
+}
+
+function changeZoom(delta) {
+  scale = Math.max(0.3, Math.min(3, scale + delta));
+  document.getElementById('zoomVal').textContent = Math.round(scale * 100) + '%';
+  renderPage();
+}
+
+async function fitPage() {
+  const scroll = document.getElementById('pdfScroll');
+  const page = await pdfDoc.getPage(currentPage);
+  const vp = page.getViewport({ scale: 1 });
+  const availW = scroll.clientWidth - 48;
+  const availH = scroll.clientHeight - 48;
+  scale = Math.min(availW / vp.width, availH / vp.height, 2);
+  document.getElementById('zoomVal').textContent = Math.round(scale * 100) + '%';
+  renderPage();
+}
+
+// ── Click para adicionar carimbo ──
+document.getElementById('pdfWrapper').addEventListener('click', function(e) {
+  if (dragging) return;
+  if (e.target.closest('.stamp-el')) return;
+  const text = getStampTextForCurrentMode();
+  if (!text) {
+    const msg = currentMode === 'obs'
+      ? 'Escreva uma observação antes de clicar no PDF.'
+      : 'Preencha ao menos um campo financeiro antes de clicar no PDF.';
+    showToast(msg, 'error');
+    return;
+  }
+  const rect = document.getElementById('pdf-canvas').getBoundingClientRect();
+  const x = e.clientX - rect.left;
+  const y = e.clientY - rect.top;
+  const xPct = x / rect.width;
+  const yPct = y / rect.height;
+  addStamp(xPct, yPct, text);
+});
+
+function addStamp(xPct, yPct, text) {
+  const id = ++stampIdCounter;
+  stamps.push({
+    id, page: currentPage,
+    xPct, yPct,
+    text,
+    mode: currentMode,
+    finType: currentMode === 'fin' ? currentFinType : null,
+    font: document.getElementById('stampFont').value,
+    color: document.getElementById('stampColor').value,
+    bg: document.getElementById('stampBg').value,
+    fontSize: parseInt(document.getElementById('fontSize').value),
+    borderStyle,
+    borderColor: document.getElementById('borderColor').value,
+    bgOpacity: parseInt(document.getElementById('bgOpacity').value),
+  });
+  renderStamps();
+  updateStampList();
+  showToast('Carimbo adicionado! Arraste para reposicionar.', 'success');
+}
+
+// ── Render overlays ──
+function renderStamps() {
+  const overlay = document.getElementById('stampOverlay');
+  overlay.innerHTML = '';
+  const canvas = document.getElementById('pdf-canvas');
+  const w = canvas.width; const h = canvas.height;
+
+  stamps.filter(s => s.page === currentPage).forEach(s => {
+    const el = document.createElement('div');
+    el.className = 'stamp-el' + (s.id === selectedStampId ? ' selected-stamp-el' : '');
+    el.dataset.id = s.id;
+    el.style.left = (s.xPct * w) + 'px';
+    el.style.top  = (s.yPct * h) + 'px';
+
+    const bgHex = s.bg;
+    const op = s.bgOpacity / 100;
+    const rgb = hexToRgb(bgHex);
+    const bgRgba = `rgba(${rgb.r},${rgb.g},${rgb.b},${op})`;
+
+    const box = document.createElement('div');
+    box.className = 'stamp-box' + (s.id === selectedStampId ? ' selected-stamp' : '');
+    box.style.fontFamily = s.font;
+    box.style.color = s.color;
+    box.style.background = bgRgba;
+    box.style.fontSize = (s.fontSize * scale * 0.75) + 'px';
+    box.style.border = s.borderStyle === 'none' ? 'none' : `2px ${s.borderStyle} ${s.borderColor}`;
+    box.textContent = s.text;
+
+    const del = document.createElement('div');
+    del.className = 'stamp-handle';
+    del.textContent = '✕';
+    del.onclick = (e) => { e.stopPropagation(); removeStamp(s.id); };
+
+    el.appendChild(box);
+    el.appendChild(del);
+    overlay.appendChild(el);
+
+    // Drag
+    el.addEventListener('mousedown', startDrag);
+    el.addEventListener('click', (e) => { e.stopPropagation(); selectStamp(s.id); });
+  });
+}
+
+function selectStamp(id) {
+  selectedStampId = (selectedStampId === id) ? null : id;
+  renderStamps();
+  updateStampList();
+}
+
+function removeStamp(id) {
+  stamps = stamps.filter(s => s.id !== id);
+  if (selectedStampId === id) selectedStampId = null;
+  renderStamps();
+  updateStampList();
+}
+
+function clearAll() {
+  if (!stamps.length) return;
+  stamps = [];
+  selectedStampId = null;
+  renderStamps();
+  updateStampList();
+  showToast('Todos os carimbos removidos.');
+}
+
+// ── Drag ──
+function startDrag(e) {
+  e.stopPropagation();
+  const el = e.currentTarget;
+  const id = parseInt(el.dataset.id);
+  const stamp = stamps.find(s => s.id === id);
+  if (!stamp) return;
+  selectedStampId = id;
+  const canvas = document.getElementById('pdf-canvas');
+  const rect = canvas.getBoundingClientRect();
+  const elRect = el.getBoundingClientRect();
+  dragOffX = e.clientX - elRect.left;
+  dragOffY = e.clientY - elRect.top;
+  dragging = { id, stamp, rect };
+  document.addEventListener('mousemove', onDrag);
+  document.addEventListener('mouseup', endDrag);
+}
+
+function onDrag(e) {
+  if (!dragging) return;
+  const rect = dragging.rect;
+  const nx = e.clientX - rect.left - dragOffX;
+  const ny = e.clientY - rect.top  - dragOffY;
+  const canvas = document.getElementById('pdf-canvas');
+  dragging.stamp.xPct = Math.max(0, Math.min(1, nx / canvas.width));
+  dragging.stamp.yPct = Math.max(0, Math.min(1, ny / canvas.height));
+  renderStamps();
+  const pos = `X: ${Math.round(dragging.stamp.xPct * 100)}%  Y: ${Math.round(dragging.stamp.yPct * 100)}%`;
+  document.getElementById('posDisplay').textContent = pos;
+}
+
+function endDrag() {
+  dragging = null;
+  document.removeEventListener('mousemove', onDrag);
+  document.removeEventListener('mouseup', endDrag);
+}
+
+// ── Mouse move no canvas para posição ──
+document.getElementById('pdfWrapper').addEventListener('mousemove', function(e) {
+  if (dragging) return;
+  const rect = document.getElementById('pdf-canvas').getBoundingClientRect();
+  const xPct = Math.round(((e.clientX - rect.left) / rect.width) * 100);
+  const yPct = Math.round(((e.clientY - rect.top)  / rect.height) * 100);
+  document.getElementById('posDisplay').textContent = `X: ${xPct}%  Y: ${yPct}%`;
+});
+
+// ── Lista de carimbos ──
+function updateStampList() {
+  const list = document.getElementById('stampList');
+  document.getElementById('stampCount').textContent = stamps.length;
+  if (!stamps.length) {
+    list.innerHTML = '<div class="empty-list">Nenhum carimbo ainda.<br>Clique no PDF para adicionar.</div>';
+    return;
+  }
+  list.innerHTML = stamps.map(s => {
+    const icon = s.mode === 'fin' ? '💰' : '📝';
+    return `
+    <div class="stamp-item ${s.id === selectedStampId ? 'selected' : ''}" onclick="jumpToStamp(${s.id})">
+      <div>
+        <div class="stamp-item-text">${icon} ${escHtml(s.text.substring(0,55))}${s.text.length>55?'…':''}</div>
+        <div class="stamp-item-page">Página ${s.page} · ${Math.round(s.xPct*100)}% × ${Math.round(s.yPct*100)}%</div>
+      </div>
+      <div class="stamp-actions">
+        <button class="icon-btn" onclick="event.stopPropagation();editStamp(${s.id})" title="Editar">✏️</button>
+        <button class="icon-btn del" onclick="event.stopPropagation();removeStamp(${s.id})" title="Remover">✕</button>
+      </div>
+    </div>
+  `;
+  }).join('');
+}
+
+function jumpToStamp(id) {
+  const s = stamps.find(st => st.id === id);
+  if (!s) return;
+  if (s.page !== currentPage) { currentPage = s.page; renderPage(); }
+  selectStamp(id);
+}
+
+function editStamp(id) {
+  const s = stamps.find(st => st.id === id);
+  if (!s) return;
+  const newText = prompt('Editar observação:', s.text);
+  if (newText !== null && newText.trim()) {
+    s.text = newText.trim();
+    renderStamps();
+    updateStampList();
+  }
+}
+
+// ── Estilo ──
+function setBorder(style) {
+  borderStyle = style;
+  ['borderSolid','borderDashed','borderNone'].forEach(id => document.getElementById(id).classList.remove('active'));
+  document.getElementById('border' + style.charAt(0).toUpperCase() + style.slice(1)).classList.add('active');
+}
+
+// ── Modo Observação / Financeiro ──
+function setMode(mode) {
+  currentMode = mode;
+  document.getElementById('modeObs').classList.toggle('active', mode === 'obs');
+  document.getElementById('modeFin').classList.toggle('active', mode === 'fin');
+  document.getElementById('obsSection').style.display = mode === 'obs' ? 'block' : 'none';
+  document.getElementById('finSection').style.display = mode === 'fin' ? 'block' : 'none';
+}
+
+function setFinType(type) {
+  currentFinType = type;
+  document.getElementById('finPix').classList.toggle('active', type === 'pix');
+  document.getElementById('finTransf').classList.toggle('active', type === 'transf');
+  document.getElementById('finBoleto').classList.toggle('active', type === 'boleto');
+  document.getElementById('finFieldsPix').style.display = type === 'pix' ? 'block' : 'none';
+  document.getElementById('finFieldsTransf').style.display = type === 'transf' ? 'block' : 'none';
+  document.getElementById('finFieldsBoleto').style.display = type === 'boleto' ? 'block' : 'none';
+}
+
+// Monta o texto final do carimbo a partir do modo ativo
+function getStampTextForCurrentMode() {
+  if (currentMode === 'obs') {
+    return document.getElementById('stampText').value.trim();
+  }
+  // Financeiro
+  if (currentFinType === 'pix') {
+    const chave = document.getElementById('pixChave').value.trim();
+    const nome  = document.getElementById('pixNome').value.trim();
+    const venc  = document.getElementById('pixVenc').value.trim();
+    if (!chave && !nome && !venc) return '';
+    let lines = ['PAGAMENTO VIA PIX'];
+    if (chave) lines.push('Chave PIX: ' + chave);
+    if (nome)  lines.push('Recebedor: ' + nome);
+    if (venc)  lines.push('Vencimento: ' + venc);
+    return lines.join('\n');
+  }
+  if (currentFinType === 'transf') {
+    const banco   = document.getElementById('transfBanco').value.trim();
+    const agencia = document.getElementById('transfAgencia').value.trim();
+    const conta   = document.getElementById('transfConta').value.trim();
+    const nome    = document.getElementById('transfNome').value.trim();
+    const venc    = document.getElementById('transfVenc').value.trim();
+    if (!banco && !agencia && !conta && !nome && !venc) return '';
+    let lines = ['TRANSFERÊNCIA BANCÁRIA'];
+    if (banco)   lines.push('Banco: ' + banco);
+    if (agencia) lines.push('Agência: ' + agencia);
+    if (conta)   lines.push('Conta: ' + conta);
+    if (nome)    lines.push('Recebedor: ' + nome);
+    if (venc)    lines.push('Vencimento: ' + venc);
+    return lines.join('\n');
+  }
+  if (currentFinType === 'boleto') {
+    const nome = document.getElementById('boletoNome').value.trim();
+    const venc = document.getElementById('boletoVenc').value.trim();
+    if (!nome && !venc) return '';
+    let lines = ['BOLETO BANCÁRIO'];
+    if (nome) lines.push('Recebedor: ' + nome);
+    if (venc) lines.push('Vencimento: ' + venc);
+    return lines.join('\n');
+  }
+  return '';
+}
+
+// ── Compressão ──
+function setCompression(level) {
+  compressionLevel = level;
+  document.getElementById('compNone').classList.toggle('active', level === 'none');
+  document.getElementById('compMed').classList.toggle('active', level === 'medium');
+  document.getElementById('compHigh').classList.toggle('active', level === 'high');
+  document.getElementById('estimateDisplay').style.display = 'none';
+}
+
+// ── Estimativa de tamanho (sem baixar o arquivo) ──
+async function estimateCompressedSize() {
+  if (!pdfBytes) { showToast('Carregue um PDF primeiro.', 'error'); return; }
+
+  const display = document.getElementById('estimateDisplay');
+  const btn = document.getElementById('estimateBtn');
+  btn.disabled = true;
+  display.style.display = 'block';
+  display.style.color = 'var(--accent)';
+  display.textContent = 'Calculando…';
+
+  try {
+    const originalSize = pdfBytes.byteLength;
+
+    if (compressionLevel === 'none') {
+      display.style.color = 'var(--text)';
+      display.textContent = `Sem compressão: tamanho permanece ~${formatBytes(originalSize)}`;
+      btn.disabled = false;
+      return;
+    }
+
+    // Roda a mesma lógica que o export usaria, mas só para medir, sem baixar
+    const { PDFDocument } = PDFLib;
+    const baseDoc = await PDFDocument.load(pdfBytes.slice(0));
+    let testBytes = await baseDoc.save({ useObjectStreams: true });
+
+    const forceRaster = document.getElementById('forceRaster').checked;
+    if (forceRaster) {
+      testBytes = await rasterizePdf(testBytes, compressionLevel);
+    } else {
+      testBytes = await compressPdfImages(testBytes, compressionLevel, true);
+    }
+
+    const newSize = testBytes.byteLength;
+    const diff = originalSize - newSize;
+    const pct = originalSize > 0 ? Math.round((diff / originalSize) * 100) : 0;
+
+    if (diff > 0) {
+      display.style.color = 'var(--success)';
+      display.textContent = `Estimado: ${formatBytes(newSize)}  (−${pct}%, economia de ${formatBytes(diff)})`;
+    } else {
+      display.style.color = 'var(--warn)';
+      display.textContent = `Estimado: ${formatBytes(newSize)}  (sem redução — este PDF provavelmente não tem imagens grandes para comprimir)`;
+    }
+  } catch (e) {
+    console.error(e);
+    display.style.color = 'var(--danger)';
+    display.textContent = 'Não foi possível estimar o tamanho para este PDF.';
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+// ── Export ──
+async function exportPDF() {
+  if (!pdfBytes) { showToast('Nenhum PDF carregado.', 'error'); return; }
+  if (!stamps.length) { showToast('Adicione pelo menos um carimbo.', 'error'); return; }
+
+  showToast('Gerando PDF…');
+  try {
+    const { PDFDocument, rgb, StandardFonts } = PDFLib;
+    const doc = await PDFDocument.load(pdfBytes.slice(0)); // cópia: evita "detached ArrayBuffer" em exportações repetidas
+    const pages = doc.getPages();
+    const font  = await doc.embedFont(StandardFonts.Helvetica);
+    const fontB = await doc.embedFont(StandardFonts.HelveticaBold);
+
+    for (const s of stamps) {
+      const pg = pages[s.page - 1];
+      if (!pg) continue;
+      const { width: pw, height: ph } = pg.getSize();
+
+      const lines = s.text.split('\n');
+      const fsz = s.fontSize * 0.9;
+      const lineH = fsz * 1.5;
+      const padH = 10, padV = 8;
+      const maxLineW = Math.max(...lines.map(l => font.widthOfTextAtSize(l, fsz)));
+      const bw = maxLineW + padH * 2;
+      const bh = lines.length * lineH + padV * 2;
+
+      // Coordenadas: PDF origin = bottom-left
+      const pdfX = s.xPct * pw;
+      const pdfY = ph - s.yPct * ph - bh;
+
+      // Fundo
+      const bgRgb = hexToRgb(s.bg);
+      const bgOp  = s.bgOpacity / 100;
+      if (bgOp > 0) {
+        pg.drawRectangle({
+          x: pdfX, y: pdfY, width: bw, height: bh,
+          color: rgb(bgRgb.r/255, bgRgb.g/255, bgRgb.b/255),
+          opacity: bgOp,
+        });
+      }
+
+      // Borda
+      if (s.borderStyle !== 'none') {
+        const bRgb = hexToRgb(s.borderColor);
+        pg.drawRectangle({
+          x: pdfX, y: pdfY, width: bw, height: bh,
+          borderColor: rgb(bRgb.r/255, bRgb.g/255, bRgb.b/255),
+          borderWidth: 1.5,
+          opacity: 0,
+        });
+      }
+
+      // Texto
+      const tRgb = hexToRgb(s.color);
+      lines.forEach((line, i) => {
+        pg.drawText(line, {
+          x: pdfX + padH,
+          y: pdfY + bh - padV - (i + 1) * lineH + (lineH - fsz) / 2,
+          size: fsz,
+          font,
+          color: rgb(tRgb.r/255, tRgb.g/255, tRgb.b/255),
+        });
+      });
+    }
+
+    // Rodapé fixo (dados de criação), aplicado em todas as páginas
+    const footerText = getFooterText();
+    if (footerText) {
+      const footerSize = 8;
+      const footerColor = rgb(0.4, 0.4, 0.4);
+      for (const pg of pages) {
+        const { width: pw } = pg.getSize();
+        const textW = font.widthOfTextAtSize(footerText, footerSize);
+        pg.drawText(footerText, {
+          x: (pw - textW) / 2,
+          y: 14,
+          size: footerSize,
+          font,
+          color: footerColor,
+        });
+      }
+    }
+
+    let out = await doc.save({ useObjectStreams: true });
+
+    const forceRaster = document.getElementById('forceRaster').checked;
+
+    if (forceRaster && compressionLevel !== 'none') {
+      // Modo scan: rasteriza cada página em imagem comprimida (reduz bastante o tamanho)
+      try {
+        out = await rasterizePdf(out, compressionLevel);
+      } catch (rastErr) {
+        console.warn('Falha ao rasterizar, exportando sem essa etapa:', rastErr);
+      }
+    } else if (compressionLevel !== 'none') {
+      // Modo normal: recomprime só as imagens já existentes, preservando texto vetorial
+      try {
+        out = await compressPdfImages(out, compressionLevel);
+      } catch (compErr) {
+        console.warn('Falha na compressão de imagens, exportando sem recompressão extra:', compErr);
+      }
+    }
+
+    const blob = new Blob([out], { type: 'application/pdf' });
+    const url  = URL.createObjectURL(blob);
+    const a    = document.createElement('a');
+    a.href = url;
+    a.download = (document.getElementById('outputName').value.trim() || 'carimbado') + '.pdf';
+    a.click();
+    URL.revokeObjectURL(url);
+
+    const finalDisplay = document.getElementById('finalSizeDisplay');
+    finalDisplay.style.display = 'block';
+    const originalSize = pdfBytes.byteLength;
+    const finalSize = out.byteLength;
+    const diff = originalSize - finalSize;
+    if (compressionLevel === 'none') {
+      finalDisplay.style.color = 'var(--text)';
+      finalDisplay.textContent = `Arquivo final: ${formatBytes(finalSize)} (sem compressão aplicada)`;
+    } else if (diff > 0) {
+      const pct = Math.round((diff / originalSize) * 100);
+      finalDisplay.style.color = 'var(--success)';
+      finalDisplay.textContent = `Arquivo final: ${formatBytes(finalSize)}  (era ${formatBytes(originalSize)}, −${pct}%)`;
+    } else {
+      finalDisplay.style.color = 'var(--warn)';
+      finalDisplay.textContent = `Arquivo final: ${formatBytes(finalSize)}  (igual ao original — sem imagens grandes para comprimir)`;
+    }
+    showToast('PDF exportado com sucesso!', 'success');
+  } catch (err) {
+    console.error(err);
+    showToast('Erro ao gerar PDF: ' + err.message, 'error');
+  }
+}
+
+// Modo "scan": rasteriza cada página em imagem comprimida. Usar só quando o PDF já é uma digitalização,
+// pois o texto deixa de ser selecionável/pesquisável depois disso.
+async function rasterizePdf(pdfBytesArr, level) {
+  const quality  = level === 'high' ? 0.45 : 0.7;
+  const maxDimPx = level === 'high' ? 1000 : 1600;
+
+  const { PDFDocument } = PDFLib;
+  const loadingTask = pdfjsLib.getDocument({ data: pdfBytesArr.slice(0) });
+  const pdfJsDoc = await loadingTask.promise;
+  const outDoc = await PDFDocument.create();
+
+  for (let i = 1; i <= pdfJsDoc.numPages; i++) {
+    const page = await pdfJsDoc.getPage(i);
+    const baseVp = page.getViewport({ scale: 1 });
+    const renderScale = Math.min(1, maxDimPx / Math.max(baseVp.width, baseVp.height));
+    const vp = page.getViewport({ scale: Math.max(renderScale, 0.3) });
+
+    const canvas = document.createElement('canvas');
+    canvas.width = Math.ceil(vp.width);
+    canvas.height = Math.ceil(vp.height);
+    const ctx = canvas.getContext('2d');
+    await page.render({ canvasContext: ctx, viewport: vp }).promise;
+
+    const jpegDataUrl = canvas.toDataURL('image/jpeg', quality);
+    const jpegBytes = dataUrlToBytes(jpegDataUrl);
+    const img = await outDoc.embedJpg(jpegBytes);
+
+    const newPage = outDoc.addPage([baseVp.width, baseVp.height]);
+    newPage.drawImage(img, { x: 0, y: 0, width: baseVp.width, height: baseVp.height });
+  }
+
+  return await outDoc.save({ useObjectStreams: true });
+}
+
+// Recomprime as imagens (XObjects) embutidas no PDF, preservando o texto vetorial intacto.
+// PDFs que são só texto (a maioria de comprovantes/boletos) não têm imagens grandes, então
+// o tamanho final tende a ficar próximo do original — o que é esperado e correto.
+async function compressPdfImages(pdfBytesArr, level, silent) {
+  const quality  = level === 'high' ? 0.4 : 0.65;
+  const maxDimPx = level === 'high' ? 900 : 1400;
+
+  const { PDFDocument, PDFName, PDFRawStream, PDFDict } = PDFLib;
+  const doc = await PDFDocument.load(pdfBytesArr.slice(0));
+
+  const indirectObjects = doc.context.enumerateIndirectObjects();
+  let recompressedCount = 0;
+
+  for (const [ref, obj] of indirectObjects) {
+    if (!(obj instanceof PDFRawStream)) continue;
+    const dict = obj.dict;
+    const subtype = dict.get(PDFName.of('Subtype'));
+    if (!subtype || subtype.toString() !== '/Image') continue;
+
+    const filter = dict.get(PDFName.of('Filter'));
+    const filterStr = filter ? filter.toString() : '';
+    // Só recomprime imagens já em JPEG (DCTDecode); manter outras intactas evita corromper o PDF
+    if (!filterStr.includes('DCTDecode')) continue;
+
+    const widthObj  = dict.get(PDFName.of('Width'));
+    const heightObj = dict.get(PDFName.of('Height'));
+    const width  = widthObj  ? widthObj.numberValue  : null;
+    const height = heightObj ? heightObj.numberValue : null;
+    if (!width || !height) continue;
+
+    try {
+      const jpegBytes = obj.contents;
+      const blob = new Blob([jpegBytes], { type: 'image/jpeg' });
+      const bitmap = await createImageBitmap(blob);
+
+      const scaleDown = Math.min(1, maxDimPx / Math.max(width, height));
+      const newW = Math.max(1, Math.round(width  * scaleDown));
+      const newH = Math.max(1, Math.round(height * scaleDown));
+
+      const canvas = document.createElement('canvas');
+      canvas.width = newW; canvas.height = newH;
+      const ctx = canvas.getContext('2d');
+      ctx.drawImage(bitmap, 0, 0, newW, newH);
+
+      const newDataUrl = canvas.toDataURL('image/jpeg', quality);
+      const newBytes = dataUrlToBytes(newDataUrl);
+
+      // Só substitui se realmente ficou menor
+      if (newBytes.length < jpegBytes.length) {
+        dict.set(PDFName.of('Width'), doc.context.obj(newW));
+        dict.set(PDFName.of('Height'), doc.context.obj(newH));
+        const newStream = PDFRawStream.of(dict, newBytes);
+        doc.context.assign(ref, newStream);
+        recompressedCount++;
+      }
+    } catch (e) {
+      // Se uma imagem específica falhar (formato incomum, CMYK, etc.), pula e mantém original
+      console.warn('Não foi possível recomprimir uma imagem do PDF:', e);
+      continue;
+    }
+  }
+
+  if (recompressedCount === 0 && !silent) {
+    showToast('Este PDF não tem imagens grandes para comprimir (provavelmente é só texto).', '');
+  }
+
+  return await doc.save({ useObjectStreams: true });
+}
+
+function dataUrlToBytes(dataUrl) {
+  const base64 = dataUrl.split(',')[1];
+  const binStr = atob(base64);
+  const bytes = new Uint8Array(binStr.length);
+  for (let i = 0; i < binStr.length; i++) bytes[i] = binStr.charCodeAt(i);
+  return bytes;
+}
+
+// ── Helpers ──
+function hexToRgb(hex) {
+  hex = hex.replace('#','');
+  if (hex.length === 3) hex = hex.split('').map(c=>c+c).join('');
+  return { r: parseInt(hex.substr(0,2),16), g: parseInt(hex.substr(2,2),16), b: parseInt(hex.substr(4,2),16) };
+}
+
+function escHtml(s) {
+  return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+function showToast(msg, type='') {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.className = type;
+  t.style.display = 'block';
+  clearTimeout(t._timer);
+  t._timer = setTimeout(() => t.style.display = 'none', 3000);
+}
+</script>
+</body>
+</html>
